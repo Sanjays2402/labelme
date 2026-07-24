@@ -4,12 +4,14 @@ import os
 from pathlib import Path
 
 import pytest
+from PySide6 import QtGui
 from PySide6 import QtWidgets
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
 from labelme._app import MainWindow
 from labelme._widgets import SettingsDialog
+from labelme._widgets.settings_dialog import _ColorSwatchButton
 from labelme._widgets.settings_dialog import _PlainTextEdit
 from labelme._yaml import safe_load
 
@@ -479,5 +481,87 @@ def test_menu_toggle_does_not_write_config_with_cli_overrides(
     assert not win._actions.save_auto.isChecked()
     assert win._config["auto_save"] is False  # in-memory still updates
     assert config_file.read_text() == before  # but nothing is persisted
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_point_size_dialog_change_applies_to_canvas(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    canvas = win._canvas_widgets.canvas
+    assert canvas._point_size == 8  # shape.point_size default
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+    spin.setValue(16)
+
+    assert win._config["shape"]["point_size"] == 16
+    assert canvas._point_size == 16
+    assert safe_load(editable_config_file.read_text())["shape"]["point_size"] == 16
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_default_shape_color_dialog_change_recolors_docks(
+    main_win: MainWinFactory,
+    qtbot: QtBot,
+    editable_config_file: Path,
+    pause: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # shape_color: null ("Fixed") routes _get_rgb_by_label straight to
+    # default_shape_color, so a color-dialog pick has an observable effect.
+    editable_config_file.write_text(
+        "shape_color: null\ndefault_shape_color: [10, 20, 30]\n"
+    )
+    win = main_win(config_file=editable_config_file)
+    win._docks.unique_label_list.add_label_item(label="cat", color=(10, 20, 30))
+    item = win._docks.unique_label_list.find_label_item("cat")
+    assert item is not None
+    assert "#0a141e" in item.text()
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    monkeypatch.setattr(
+        QtWidgets.QColorDialog,
+        "getColor",
+        lambda *args, **kwargs: QtGui.QColor(40, 50, 60),
+    )
+
+    swatch.clicked.emit()
+
+    assert win._config["default_shape_color"] == [40, 50, 60]
+    assert "#28323c" in item.text()  # unique-label dock swatch recolored live
+    persisted = safe_load(editable_config_file.read_text())
+    assert persisted["default_shape_color"] == [40, 50, 60]
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_shape_color_dialog_change_persists_fixed_as_null(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert win._config["shape_color"] == "auto"
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    combo = dialog._editors[("shape_color",)]
+    assert isinstance(combo, QtWidgets.QComboBox)
+    combo.setCurrentIndex(combo.findData(None))  # "Fixed"
+
+    assert win._config["shape_color"] is None
+    assert safe_load(editable_config_file.read_text())["shape_color"] is None
 
     close_or_pause(qtbot=qtbot, widget=win, pause=pause)

@@ -8,7 +8,7 @@ from typing import cast
 
 from PySide6.QtCore import QT_TRANSLATE_NOOP
 
-Section = Literal["General", "Annotation", "Labels"]
+Section = Literal["General", "Annotation", "Display", "Labels"]
 Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 
 # Section names double as tab titles. QT_TRANSLATE_NOOP marks them for pyside6-lupdate
@@ -19,6 +19,7 @@ Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 _TRANSLATABLE_SECTIONS: Final = (
     QT_TRANSLATE_NOOP("SettingsDialog", "General"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Annotation"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Display"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Labels"),
 )
 assert set(_TRANSLATABLE_SECTIONS) == set(typing.get_args(Section))
@@ -87,15 +88,6 @@ SETTINGS: Final[tuple[Setting, ...]] = (
                 "SettingsDialog", "Embeds the image in the label JSON file."
             ),
         ),
-    ),
-    Setting(
-        key_path=("shape", "show_labels"),
-        section="General",
-        label=cast(
-            str, QT_TRANSLATE_NOOP("SettingsDialog", "Show shape labels on canvas")
-        ),
-        kind="bool",
-        beta=True,
     ),
     Setting(
         key_path=("display_label_popup",),
@@ -174,6 +166,47 @@ SETTINGS: Final[tuple[Setting, ...]] = (
             ),
         ),
         beta=True,
+    ),
+    Setting(
+        key_path=("shape", "show_labels"),
+        section="Display",
+        label=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Show shape labels on canvas")
+        ),
+        kind="bool",
+        beta=True,
+    ),
+    Setting(
+        key_path=("shape", "point_size"),
+        section="Display",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Vertex size")),
+        kind="int",
+        min_value=1,
+        max_value=32,
+    ),
+    Setting(
+        key_path=("shape_color",),
+        section="Display",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Shape coloring")),
+        kind="enum",
+        choices=("auto", "manual", None),
+        choice_labels=(
+            cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Automatic")),
+            cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Manual")),
+            cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Fixed")),
+        ),
+        note=cast(
+            str,
+            QT_TRANSLATE_NOOP(
+                "SettingsDialog", "Manual uses label_colors from the config file."
+            ),
+        ),
+    ),
+    Setting(
+        key_path=("default_shape_color",),
+        section="Display",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Default shape color")),
+        kind="color",
     ),
     Setting(
         key_path=("labels",),

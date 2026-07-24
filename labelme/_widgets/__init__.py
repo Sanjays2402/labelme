@@ -8,6 +8,7 @@ from .download import download_ai_model
 from .label_dialog import LabelDialog
 from .label_list_widget import LabelListWidget
 from .label_list_widget import LabelListWidgetItem
+from .label_list_widget import format_label_with_color_dot
 from .label_list_widget import format_shape_label
 from .settings_dialog import SettingsDialog
 from .tool_bar import ToolBar

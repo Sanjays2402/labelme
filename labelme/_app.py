@@ -60,6 +60,7 @@ from ._widgets import ToolBar
 from ._widgets import UniqueLabelQListWidget
 from ._widgets import ZoomWidget
 from ._widgets import download_ai_model
+from ._widgets import format_label_with_color_dot
 from ._widgets import format_shape_label
 
 LABEL_COLORMAP: NDArray[np.uint8] = imgviz.label_colormap()
@@ -2596,6 +2597,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._config["canvas"]["allow_out_of_bounds_points"]
             )
             canvas.update()
+        elif key_path == ("shape", "point_size"):
+            canvas = self._canvas_widgets.canvas
+            canvas.set_point_size(self._config["shape"]["point_size"])
+            canvas.update()
+        elif key_path in (("shape_color",), ("default_shape_color",)):
+            self._refresh_shape_colors()
         elif key_path[0] == "labels":
             # Update predefined labels in place so session history (labels learned
             # from loaded/created shapes via add_label_history) is preserved, while
@@ -2628,6 +2635,37 @@ class MainWindow(QtWidgets.QMainWindow):
             flags = {key: False for key in self._config["flags"] or []}
             flags.update(current)
             self._load_flags(flags=flags, widget=self._docks.flag_list)
+
+    def _refresh_shape_colors(self) -> None:
+        # Canvas shapes re-resolve their color from _color_resolver on every
+        # repaint (see Canvas._resolve_palette), so they only need update()
+        # below. The two docks bake each label's color into item text at
+        # creation time, so those need an explicit rewrite.
+        unique_label_list = self._docks.unique_label_list
+        for row in range(unique_label_list.count()):
+            item = unique_label_list.item(row)
+            assert item is not None
+            label = item.data(Qt.ItemDataRole.UserRole)
+            item.setText(
+                format_label_with_color_dot(
+                    text=label,
+                    color=self._get_rgb_by_label(
+                        label=label, unique_label_list=unique_label_list
+                    ),
+                )
+            )
+        for label_item in self._docks.label_list:
+            shape = label_item.shape()
+            assert shape is not None and shape.label is not None
+            label_item.setText(
+                format_shape_label(
+                    shape,
+                    fill_rgb=self._get_rgb_by_label(
+                        label=shape.label, unique_label_list=unique_label_list
+                    ),
+                )
+            )
+        self._canvas_widgets.canvas.update()
 
     def _read_flag_dock_states(self) -> dict[str, bool]:
         flags: dict[str, bool] = {}
