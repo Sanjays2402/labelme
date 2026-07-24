@@ -219,7 +219,7 @@ class Canvas(QtWidgets.QWidget):
         self._allow_out_of_bounds_points: bool = kwargs.pop(
             "allow_out_of_bounds_points", False
         )
-        self._crosshair = kwargs.pop(
+        self._crosshair: dict[str, bool] = kwargs.pop(
             "crosshair",
             {
                 "polygon": False,
@@ -278,6 +278,9 @@ class Canvas(QtWidgets.QWidget):
 
     def set_allow_out_of_bounds_points(self, value: bool) -> None:
         self._allow_out_of_bounds_points = value
+
+    def set_crosshair(self, crosshair: dict[str, bool]) -> None:
+        self._crosshair = crosshair
 
     def set_color_resolver(
         self, resolver: Callable[[str], tuple[int, int, int]]

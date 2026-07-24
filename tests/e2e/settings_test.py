@@ -388,6 +388,83 @@ def test_fill_drawing_startup_sync_does_not_write_config(
 
 
 @pytest.mark.gui
+def test_keep_prev_dialog_toggle_checks_menu_action(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert not win._actions.toggle_keep_prev_mode.isChecked()
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    checkbox = dialog._editors[("keep_prev",)]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    checkbox.setChecked(True)
+
+    assert win._actions.toggle_keep_prev_mode.isChecked()
+    assert win._config["keep_prev"] is True
+    assert safe_load(editable_config_file.read_text())["keep_prev"] is True
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_fill_drawing_dialog_toggle_applies_to_canvas(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    canvas = win._canvas_widgets.canvas
+    assert canvas._fill_drawing  # canvas.fill_drawing defaults true
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    checkbox = dialog._editors[("canvas", "fill_drawing")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    checkbox.setChecked(False)
+
+    assert not canvas._fill_drawing
+    assert not win._actions.fill_drawing.isChecked()
+    assert (
+        safe_load(editable_config_file.read_text())["canvas"]["fill_drawing"] is False
+    )
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_crosshair_dialog_toggle_writes_all_nine_modes_and_applies_to_canvas(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    canvas = win._canvas_widgets.canvas
+    # Defaults: rectangle and ai_box_to_shape true, every other mode false.
+    assert any(canvas._crosshair.values())
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()
+    checkbox.setChecked(False)
+
+    all_disabled = {mode: False for mode in win._config["canvas"]["crosshair"]}
+    assert win._config["canvas"]["crosshair"] == all_disabled
+    assert canvas._crosshair == all_disabled
+
+    persisted = safe_load(editable_config_file.read_text())
+    # Modes already false at default are pruned; only the two true defaults
+    # become explicit overrides.
+    assert persisted["canvas"]["crosshair"] == {
+        "rectangle": False,
+        "ai_box_to_shape": False,
+    }
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
 def test_menu_toggle_does_not_write_config_with_cli_overrides(
     main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
 ) -> None:

@@ -8,7 +8,7 @@ from typing import cast
 
 from PySide6.QtCore import QT_TRANSLATE_NOOP
 
-Section = Literal["General", "Labels"]
+Section = Literal["General", "Annotation", "Labels"]
 Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 
 # Section names double as tab titles. QT_TRANSLATE_NOOP marks them for pyside6-lupdate
@@ -18,6 +18,7 @@ Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 # cannot silently lose its translation.
 _TRANSLATABLE_SECTIONS: Final = (
     QT_TRANSLATE_NOOP("SettingsDialog", "General"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Annotation"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Labels"),
 )
 assert set(_TRANSLATABLE_SECTIONS) == set(typing.get_args(Section))
@@ -59,12 +60,33 @@ SETTINGS: Final[tuple[Setting, ...]] = (
         ),
     ),
     Setting(
-        key_path=("display_label_popup",),
+        key_path=("language",),
+        section="General",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Language")),
+        kind="language",
+        note=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Takes effect after restart.")
+        ),
+    ),
+    Setting(
+        key_path=("auto_save",),
+        section="General",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Save automatically")),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("with_image_data",),
         section="General",
         label=cast(
-            str, QT_TRANSLATE_NOOP("SettingsDialog", "Show label popup on new shape")
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Save image data in label file")
         ),
         kind="bool",
+        note=cast(
+            str,
+            QT_TRANSLATE_NOOP(
+                "SettingsDialog", "Embeds the image in the label JSON file."
+            ),
+        ),
     ),
     Setting(
         key_path=("shape", "show_labels"),
@@ -76,8 +98,66 @@ SETTINGS: Final[tuple[Setting, ...]] = (
         beta=True,
     ),
     Setting(
+        key_path=("display_label_popup",),
+        section="Annotation",
+        label=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Show label popup on new shape")
+        ),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("keep_prev",),
+        section="Annotation",
+        label=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Keep previous annotation")
+        ),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("keep_prev_scale",),
+        section="Annotation",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Keep previous zoom")),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("keep_prev_brightness_contrast",),
+        section="Annotation",
+        label=cast(
+            str,
+            QT_TRANSLATE_NOOP("SettingsDialog", "Keep previous brightness/contrast"),
+        ),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("canvas", "fill_drawing"),
+        section="Annotation",
+        label=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Fill polygon while drawing")
+        ),
+        kind="bool",
+    ),
+    Setting(
+        # Derived master toggle over canvas.crosshair.<mode>; see
+        # settings_dialog._set_editor_value for how the checked state is read
+        # from the mode dict, and MainWindow._set_crosshair_override for how a
+        # toggle fans out to all nine keys.
+        key_path=("canvas", "crosshair"),
+        section="Annotation",
+        label=cast(
+            str, QT_TRANSLATE_NOOP("SettingsDialog", "Show crosshair while drawing")
+        ),
+        kind="bool",
+        note=cast(
+            str,
+            QT_TRANSLATE_NOOP(
+                "SettingsDialog",
+                "Shows a crosshair over the image for every drawing tool.",
+            ),
+        ),
+    ),
+    Setting(
         key_path=("canvas", "allow_out_of_bounds_points"),
-        section="General",
+        section="Annotation",
         label=cast(
             str,
             QT_TRANSLATE_NOOP(
@@ -94,15 +174,6 @@ SETTINGS: Final[tuple[Setting, ...]] = (
             ),
         ),
         beta=True,
-    ),
-    Setting(
-        key_path=("language",),
-        section="General",
-        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Language")),
-        kind="language",
-        note=cast(
-            str, QT_TRANSLATE_NOOP("SettingsDialog", "Takes effect after restart.")
-        ),
     ),
     Setting(
         key_path=("labels",),

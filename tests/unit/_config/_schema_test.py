@@ -29,7 +29,15 @@ def _ids(settings: tuple[Setting, ...]) -> list[str]:
 
 
 _ENUM_SETTINGS = tuple(s for s in SETTINGS if s.kind == "enum")
-_BOOL_SETTINGS = tuple(s for s in SETTINGS if s.kind == "bool")
+_BOOL_SETTINGS = tuple(
+    s
+    for s in SETTINGS
+    if s.kind == "bool"
+    # canvas.crosshair is a derived master toggle over nine bool sub-keys, so
+    # its key_path resolves to a dict rather than a bool; see
+    # settings_dialog._set_editor_value.
+    and s.key_path != ("canvas", "crosshair")
+)
 
 
 @pytest.mark.parametrize("setting", SETTINGS, ids=_ids(SETTINGS))

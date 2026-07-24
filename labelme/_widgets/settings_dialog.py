@@ -309,7 +309,10 @@ class SettingsDialog(QtWidgets.QDialog):
 
     def _set_editor_value(self, editor: QtWidgets.QWidget, value: object) -> None:
         if isinstance(editor, QtWidgets.QCheckBox):
-            editor.setChecked(bool(value))
+            # A dict value means this row is a derived master toggle over several
+            # config keys (e.g. canvas.crosshair.<mode>): checked when any is set.
+            checked = any(value.values()) if isinstance(value, dict) else bool(value)
+            editor.setChecked(checked)
         elif isinstance(editor, QtWidgets.QComboBox):
             editor.setCurrentIndex(max(editor.findData(value), 0))
         elif isinstance(editor, _PlainTextEdit):

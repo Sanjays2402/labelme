@@ -2513,6 +2513,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # so there is always a file to persist to.
         if self._config_file is None:
             return False
+        if key_path == ("canvas", "crosshair"):
+            return self._set_crosshair_override(enabled=bool(value))
         try:
             _config.set_override(
                 config_file=self._config_file, key_path=key_path, value=value
@@ -2523,6 +2525,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._assign_config_value(key_path=key_path, value=value)
         self._apply_to_live_widgets(key_path=key_path)
+        return True
+
+    def _set_crosshair_override(self, enabled: bool) -> bool:
+        # The "Crosshair while drawing" dialog row is one checkbox derived from
+        # nine canvas.crosshair.<mode> keys (schema.py), so a toggle writes all
+        # nine individually rather than one bool over the dict section, keeping
+        # each key prunable to its own default.
+        assert self._config_file is not None
+        for mode in self._config["canvas"]["crosshair"]:
+            try:
+                _config.set_override(
+                    config_file=self._config_file,
+                    key_path=("canvas", "crosshair", mode),
+                    value=enabled,
+                )
+            except (OSError, ValueError) as e:
+                QtWidgets.QMessageBox.warning(
+                    self, self.tr("Configuration Error"), str(e)
+                )
+                return False
+            self._config["canvas"]["crosshair"][mode] = enabled
+        self._apply_to_live_widgets(key_path=("canvas", "crosshair"))
         return True
 
     def _apply_to_live_widgets(self, key_path: tuple[str, ...]) -> None:
@@ -2555,6 +2579,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self._sync_action_checked(
                 self._actions.fill_drawing, self._config["canvas"]["fill_drawing"]
             )
+            self._canvas_widgets.canvas.set_fill_drawing(
+                self._config["canvas"]["fill_drawing"]
+            )
+        elif key_path == ("canvas", "crosshair"):
+            canvas = self._canvas_widgets.canvas
+            canvas.set_crosshair(self._config["canvas"]["crosshair"])
+            canvas.update()
         elif key_path == ("shape", "show_labels"):
             canvas = self._canvas_widgets.canvas
             canvas.set_show_labels(self._config["shape"]["show_labels"])

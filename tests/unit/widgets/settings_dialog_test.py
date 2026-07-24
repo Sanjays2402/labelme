@@ -29,6 +29,13 @@ _COLOR_SETTING = schema.Setting(
     kind="color",
 )
 
+_CROSSHAIR_SETTING = schema.Setting(
+    key_path=("canvas", "crosshair"),
+    section="Annotation",
+    label="Show crosshair while drawing",
+    kind="bool",
+)
+
 
 @pytest.fixture
 def applied() -> Applied:
@@ -370,4 +377,72 @@ def test_color_refresh_setting_updates_swatch(qtbot: QtBot, applied: Applied) ->
     dialog.refresh_setting(("default_shape_color",))
 
     assert swatch.rgb() == (1, 2, 3)
+    assert applied == []
+
+
+def test_tabs_include_annotation_section(dialog: SettingsDialog) -> None:
+    titles = [dialog._tabs.tabText(i) for i in range(dialog._tabs.count())]
+    assert titles == ["General", "Annotation", "Labels"]
+
+
+def test_crosshair_editor_initial_value_is_any_mode_enabled(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_CROSSHAIR_SETTING,)
+    )
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()  # default has canvas.crosshair.rectangle: true
+
+
+def test_crosshair_editor_unchecked_when_every_mode_is_disabled(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot,
+        applied=applied,
+        overrides={
+            "canvas": {
+                "crosshair": {"rectangle": False, "ai_box_to_shape": False},
+            }
+        },
+        settings=(_CROSSHAIR_SETTING,),
+    )
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert not checkbox.isChecked()
+
+
+def test_crosshair_editor_applies_a_single_bool_on_toggle(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_CROSSHAIR_SETTING,)
+    )
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+
+    checkbox.setChecked(False)
+
+    # The dialog treats this like any other bool row; MainWindow is the one that
+    # fans this single value out to the nine canvas.crosshair.<mode> keys.
+    assert applied == [(("canvas", "crosshair"), False)]
+
+
+def test_crosshair_refresh_setting_updates_from_config(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_CROSSHAIR_SETTING,)
+    )
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()
+
+    dialog._config["canvas"]["crosshair"]["rectangle"] = False
+    dialog._config["canvas"]["crosshair"]["ai_box_to_shape"] = False
+    dialog.refresh_setting(("canvas", "crosshair"))
+
+    assert not checkbox.isChecked()
     assert applied == []
