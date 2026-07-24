@@ -8,7 +8,9 @@ from typing import cast
 
 from PySide6.QtCore import QT_TRANSLATE_NOOP
 
-Section = Literal["General", "Annotation", "Display", "Labels"]
+from .._ai_models import AVAILABLE_AI_MODELS
+
+Section = Literal["General", "Annotation", "Display", "Labels", "AI"]
 Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 
 # Section names double as tab titles. QT_TRANSLATE_NOOP marks them for pyside6-lupdate
@@ -21,6 +23,7 @@ _TRANSLATABLE_SECTIONS: Final = (
     QT_TRANSLATE_NOOP("SettingsDialog", "Annotation"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Display"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Labels"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "AI"),
 )
 assert set(_TRANSLATABLE_SECTIONS) == set(typing.get_args(Section))
 
@@ -256,5 +259,16 @@ SETTINGS: Final[tuple[Setting, ...]] = (
             cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Starts with")),
             cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Contains")),
         ),
+    ),
+    Setting(
+        # Choices are the models' display names, matching the format
+        # AiAssistedAnnotationWidget itself stores in ai.default (see
+        # _ai_assisted_annotation_widget.py, where the dock combobox looks up
+        # its initial selection by display name, not model id).
+        key_path=("ai", "default"),
+        section="AI",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Default model")),
+        kind="enum",
+        choices=tuple(display_name for _, display_name in AVAILABLE_AI_MODELS),
     ),
 )

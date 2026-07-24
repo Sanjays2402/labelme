@@ -9,24 +9,19 @@ from PySide6 import QtGui
 from PySide6 import QtWidgets
 from PySide6.QtCore import Qt
 
+from .._ai_models import AVAILABLE_AI_MODELS
 from .._automation import AiOutputFormat
 from ._info_button import InfoButton
 
 
 class AiAssistedAnnotationWidget(QtWidgets.QWidget):
     hover_highlight_requested = QtCore.Signal(bool)
+    # Emits the newly selected model's display name whenever the dock combobox
+    # changes, whether from a user click or a programmatic set_current_model
+    # call (e.g. mirroring a Settings-dialog edit).
+    model_changed = QtCore.Signal(str)
 
-    _available_models: list[tuple[str, str]] = [
-        ("efficientsam:10m", "EfficientSam (speed)"),
-        ("efficientsam:latest", "EfficientSam (accuracy)"),
-        ("sam:100m", "Sam (speed)"),
-        ("sam:300m", "Sam (balanced)"),
-        ("sam:latest", "Sam (accuracy)"),
-        ("sam2:small", "Sam2 (speed)"),
-        ("sam2:latest", "Sam2 (balanced)"),
-        ("sam2:large", "Sam2 (accuracy)"),
-        ("sam3:latest", "Sam3"),
-    ]
+    _available_models: tuple[tuple[str, str], ...] = AVAILABLE_AI_MODELS
 
     _model_combo: QtWidgets.QComboBox
     _output_format_combo: QtWidgets.QComboBox
@@ -102,9 +97,11 @@ class AiAssistedAnnotationWidget(QtWidgets.QWidget):
             logger.warning("Default AI model is not found: {!r}", default_model)
             model_index = 0
 
-        self._model_combo.currentIndexChanged.connect(
-            lambda index: on_model_changed(self._model_combo.itemData(index))
-        )
+        def _on_model_combo_changed(index: int) -> None:
+            on_model_changed(self._model_combo.itemData(index))
+            self.model_changed.emit(self._model_combo.currentText())
+
+        self._model_combo.currentIndexChanged.connect(_on_model_combo_changed)
         self._model_combo.setCurrentIndex(model_index)
 
         self._output_format_combo.currentIndexChanged.connect(
@@ -115,6 +112,16 @@ class AiAssistedAnnotationWidget(QtWidgets.QWidget):
         self._output_format_combo.setCurrentIndex(0)
 
         self.setMaximumWidth(200)
+
+    def set_current_model(self, model_display: str) -> None:
+        # Mirrors a Settings-dialog edit into the dock combobox. Check-before-set
+        # avoids an unnecessary currentIndexChanged notification when the value
+        # already matches (e.g. the edit that triggered this originated from the
+        # very combo being synced).
+        index = self._model_combo.findText(model_display)
+        if index < 0 or self._model_combo.currentIndex() == index:
+            return
+        self._model_combo.setCurrentIndex(index)
 
     def set_disabled_models(self, disabled_models: tuple[str, ...]) -> None:
         model = typing.cast(QtGui.QStandardItemModel, self._model_combo.model())

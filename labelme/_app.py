@@ -237,6 +237,12 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._ai_annotation.setEnabled(False)
         self._ai_buttons_highlighted = False
+        # Connected after construction so the combobox's own startup sync (set
+        # from ai.default above) does not immediately re-persist the value it
+        # was just read from.
+        self._ai_annotation.model_changed.connect(
+            lambda display_name: self._set_config_value(("ai", "default"), display_name)
+        )
 
         self._ai_text = AiTextToAnnotationWidget(
             on_submit=self._submit_ai_prompt, parent=self
@@ -2650,6 +2656,8 @@ class MainWindow(QtWidgets.QMainWindow):
             # fresh), and the popup it shows is application-modal, so it cannot be
             # open while this settings-driven rebuild runs.
             self._label_dialog = self._make_label_dialog()
+        elif key_path == ("ai", "default"):
+            self._ai_annotation.set_current_model(self._config["ai"]["default"])
 
     def _refresh_shape_colors(self) -> None:
         # Canvas shapes re-resolve their color from _color_resolver on every

@@ -640,3 +640,70 @@ def test_label_completion_dialog_change_rebuilds_label_dialog(
     assert safe_load(editable_config_file.read_text())["label_completion"] == "contains"
 
     close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_ai_default_dialog_change_syncs_dock_combo(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert win._config["ai"]["default"] == "Sam2 (balanced)"
+    dock_combo = win._ai_annotation._model_combo
+    assert dock_combo.currentText() == "Sam2 (balanced)"
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    combo = dialog._editors[("ai", "default")]
+    assert isinstance(combo, QtWidgets.QComboBox)
+    combo.setCurrentIndex(combo.findData("EfficientSam (speed)"))
+
+    assert win._config["ai"]["default"] == "EfficientSam (speed)"
+    # settings-dialog change -> dock combobox follows
+    assert dock_combo.currentText() == "EfficientSam (speed)"
+    assert win._canvas_widgets.canvas.get_ai_model_name() == "efficientsam:10m"
+    assert (
+        safe_load(editable_config_file.read_text())["ai"]["default"]
+        == "EfficientSam (speed)"
+    )
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_ai_dock_combo_change_persists_as_default(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    dock_combo = win._ai_annotation._model_combo
+
+    # dock combobox change -> persists as the new default
+    dock_combo.setCurrentIndex(dock_combo.findData("sam:100m"))
+
+    assert win._config["ai"]["default"] == "Sam (speed)"
+    assert safe_load(editable_config_file.read_text())["ai"]["default"] == "Sam (speed)"
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    combo = dialog._editors[("ai", "default")]
+    assert isinstance(combo, QtWidgets.QComboBox)
+    assert combo.currentData() == "Sam (speed)"
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_ai_annotation_construction_does_not_write_config(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    # The dock combobox's startup sync (index set from ai.default, which is not
+    # the combo's first entry) must not round-trip back into a config write; the
+    # model_changed -> _set_config_value wiring is connected only after
+    # construction to avoid exactly that.
+    before = editable_config_file.read_text()
+    win = main_win(config_file=editable_config_file)
+
+    assert editable_config_file.read_text() == before
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)

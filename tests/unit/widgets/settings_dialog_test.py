@@ -382,7 +382,7 @@ def test_color_refresh_setting_updates_swatch(qtbot: QtBot, applied: Applied) ->
 
 def test_tabs_include_annotation_section(dialog: SettingsDialog) -> None:
     titles = [dialog._tabs.tabText(i) for i in range(dialog._tabs.count())]
-    assert titles == ["General", "Annotation", "Display", "Labels"]
+    assert titles == ["General", "Annotation", "Display", "Labels", "AI"]
 
 
 def test_crosshair_editor_initial_value_is_any_mode_enabled(
