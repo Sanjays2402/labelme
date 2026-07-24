@@ -298,3 +298,109 @@ def test_settings_disabled_with_cli_overrides(
     assert win._settings_dialog is None
 
     close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_save_with_image_data_toggle_persists_and_survives_restart(
+    main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
+) -> None:
+    # with_image_data defaults to false, so toggling on writes an explicit
+    # override (unlike auto_save, whose default is already true).
+    config_file = tmp_path / "labelmerc.yaml"
+    config_file.write_text("")
+    win = main_win(config_file=config_file)
+    assert not win._actions.save_with_image_data.isChecked()
+
+    win._actions.save_with_image_data.trigger()
+
+    assert win._actions.save_with_image_data.isChecked()
+    assert win._config["with_image_data"] is True
+    assert safe_load(config_file.read_text())["with_image_data"] is True
+
+    # Restart-equivalent: a fresh MainWindow over the same config file picks up
+    # the persisted value.
+    restarted = main_win(config_file=config_file)
+    assert restarted._actions.save_with_image_data.isChecked()
+    assert restarted._config["with_image_data"] is True
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_save_automatically_toggle_persists_and_survives_restart(
+    main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
+) -> None:
+    # auto_save defaults to true, so this exercises toggling off (and the file
+    # gaining an explicit override that differs from the default).
+    config_file = tmp_path / "labelmerc.yaml"
+    config_file.write_text("")
+    win = main_win(config_file=config_file)
+    assert win._actions.save_auto.isChecked()
+
+    win._actions.save_auto.trigger()
+
+    assert not win._actions.save_auto.isChecked()
+    assert win._config["auto_save"] is False
+    assert safe_load(config_file.read_text())["auto_save"] is False
+
+    restarted = main_win(config_file=config_file)
+    assert not restarted._actions.save_auto.isChecked()
+    assert restarted._config["auto_save"] is False
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_fill_drawing_toggle_persists_nested_key(
+    main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
+) -> None:
+    config_file = tmp_path / "labelmerc.yaml"
+    config_file.write_text("")
+    win = main_win(config_file=config_file)
+    assert win._actions.fill_drawing.isChecked()  # canvas.fill_drawing defaults true
+
+    win._actions.fill_drawing.trigger()
+
+    assert not win._actions.fill_drawing.isChecked()
+    assert win._config["canvas"]["fill_drawing"] is False
+    persisted = safe_load(config_file.read_text())
+    assert persisted["canvas"]["fill_drawing"] is False
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_fill_drawing_startup_sync_does_not_write_config(
+    main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
+) -> None:
+    config_file = tmp_path / "labelmerc.yaml"
+    config_file.write_text("canvas:\n  fill_drawing: true\n")
+
+    win = main_win(config_file=config_file)
+
+    assert win._actions.fill_drawing.isChecked()
+    assert win._canvas_widgets.canvas._fill_drawing
+    # The startup trigger() that syncs the canvas to the loaded config must not
+    # itself rewrite the file (it did not originate from a user edit).
+    assert config_file.read_text() == "canvas:\n  fill_drawing: true\n"
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_menu_toggle_does_not_write_config_with_cli_overrides(
+    main_win: MainWinFactory, qtbot: QtBot, tmp_path: Path, pause: bool
+) -> None:
+    config_file = tmp_path / "labelmerc.yaml"
+    config_file.write_text("")
+    win = main_win(config_file=config_file, config_overrides={"labels": ["bird"]})
+    before = config_file.read_text()
+    assert win._actions.save_auto.isChecked()
+
+    win._actions.save_auto.trigger()
+
+    assert not win._actions.save_auto.isChecked()
+    assert win._config["auto_save"] is False  # in-memory still updates
+    assert config_file.read_text() == before  # but nothing is persisted
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)

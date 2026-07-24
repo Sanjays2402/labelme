@@ -326,6 +326,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         save_auto = action(
             text=self.tr("Save &Automatically"),
+            slot=lambda checked: self._set_config_value(("auto_save",), checked),
             tip=self.tr("Save automatically"),
             checkable=True,
             enabled=True,
@@ -376,9 +377,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         keep_prev_action = action(
             text=self.tr("Keep Previous Annotation"),
-            slot=lambda: self._config.__setitem__(
-                "keep_prev", not self._config["keep_prev"]
-            ),
+            slot=lambda checked: self._set_config_value(("keep_prev",), checked),
             shortcut=shortcuts["toggle_keep_prev_mode"],
             tip=self.tr('Toggle "keep previous annotation" mode'),
             checkable=True,
@@ -386,9 +385,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         toggle_keep_prev_brightness_contrast = action(
             text=self.tr("Keep Previous Brightness/Contrast"),
-            slot=lambda: self._config.__setitem__(
-                "keep_prev_brightness_contrast",
-                not self._config["keep_prev_brightness_contrast"],
+            slot=lambda checked: self._set_config_value(
+                ("keep_prev_brightness_contrast",), checked
             ),
             checkable=True,
             checked=self._config["keep_prev_brightness_contrast"],
@@ -569,10 +567,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         keep_prev_zoom = action(
             text=self.tr("&Keep Previous Zoom"),
-            slot=lambda: self._config.__setitem__(
-                "keep_prev_scale",
-                not self._config["keep_prev_scale"],
-            ),
+            slot=lambda checked: self._set_config_value(("keep_prev_scale",), checked),
             checkable=True,
             checked=self._config["keep_prev_scale"],
         )
@@ -642,6 +637,11 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if self._config["canvas"]["fill_drawing"]:
             fill_drawing.trigger()
+        # Connected after the startup sync trigger() above so that initial-state
+        # sync does not itself write the config file.
+        fill_drawing.triggered.connect(
+            lambda checked: self._set_config_value(("canvas", "fill_drawing"), checked)
+        )
         hide_all = action(
             self.tr("&Hide\nShapes"),
             functools.partial(self.toggle_shape_visibility, False),
@@ -2252,8 +2252,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return available_w / self._canvas_widgets.canvas.pixmap.width()
 
     def set_save_image_with_data(self, enabled: bool) -> None:
-        self._config["with_image_data"] = enabled
         self._actions.save_with_image_data.setChecked(enabled)
+        self._set_config_value(("with_image_data",), enabled)
 
     def _reset_layout(self) -> None:
         self._window_state.remove("window/state")
@@ -2476,6 +2476,38 @@ class MainWindow(QtWidgets.QMainWindow):
             flags=self._config["label_flags"],
         )
 
+    def _assign_config_value(self, key_path: tuple[str, ...], value: object) -> None:
+        node: dict = self._config
+        for key in key_path[:-1]:
+            node = node[key]
+        node[key_path[-1]] = value
+
+    def _set_config_value(self, key_path: tuple[str, ...], value: object) -> None:
+        # Used by menu/toolbar toggles that mutate config outside the Settings
+        # dialog (e.g. "Save Automatically"); _on_setting_changed is the dialog's
+        # own apply_setting callback and persists independently.
+        self._assign_config_value(key_path=key_path, value=value)
+
+        if not self._is_settings_editable:
+            return
+        assert self._config_file is not None
+        try:
+            _config.set_override(
+                config_file=self._config_file, key_path=key_path, value=value
+            )
+        except (OSError, ValueError) as e:
+            QtWidgets.QMessageBox.warning(self, self.tr("Configuration Error"), str(e))
+            return
+        if self._settings_dialog is not None:
+            self._settings_dialog.refresh_setting(key_path)
+
+    def _sync_action_checked(self, action: QtGui.QAction, checked: bool) -> None:
+        # check-before-set avoids an unnecessary QAction change notification when
+        # the value already matches (e.g. the edit that triggered this originated
+        # from the very action being synced).
+        if action.isChecked() != checked:
+            action.setChecked(checked)
+
     def _on_setting_changed(self, key_path: tuple[str, ...], value: object) -> bool:
         # The dialog only opens with an editable config file (see _open_settings),
         # so there is always a file to persist to.
@@ -2489,10 +2521,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, self.tr("Configuration Error"), str(e))
             return False
 
-        node: dict = self._config
-        for key in key_path[:-1]:
-            node = node[key]
-        node[key_path[-1]] = value
+        self._assign_config_value(key_path=key_path, value=value)
         self._apply_to_live_widgets(key_path=key_path)
         return True
 
@@ -2501,6 +2530,31 @@ class MainWindow(QtWidgets.QMainWindow):
             # apply_color_theme -> setColorScheme emits colorSchemeChanged, which
             # drives _retheme; no explicit refresh needed here.
             _utils.apply_color_theme(theme=self._config["color_theme"])
+        elif key_path == ("auto_save",):
+            self._sync_action_checked(
+                self._actions.save_auto, self._config["auto_save"]
+            )
+        elif key_path == ("with_image_data",):
+            self._sync_action_checked(
+                self._actions.save_with_image_data, self._config["with_image_data"]
+            )
+        elif key_path == ("keep_prev",):
+            self._sync_action_checked(
+                self._actions.toggle_keep_prev_mode, self._config["keep_prev"]
+            )
+        elif key_path == ("keep_prev_scale",):
+            self._sync_action_checked(
+                self._actions.keep_prev_zoom, self._config["keep_prev_scale"]
+            )
+        elif key_path == ("keep_prev_brightness_contrast",):
+            self._sync_action_checked(
+                self._actions.toggle_keep_prev_brightness_contrast,
+                self._config["keep_prev_brightness_contrast"],
+            )
+        elif key_path == ("canvas", "fill_drawing"):
+            self._sync_action_checked(
+                self._actions.fill_drawing, self._config["canvas"]["fill_drawing"]
+            )
         elif key_path == ("shape", "show_labels"):
             canvas = self._canvas_widgets.canvas
             canvas.set_show_labels(self._config["shape"]["show_labels"])

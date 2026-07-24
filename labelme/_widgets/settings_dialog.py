@@ -275,6 +275,13 @@ class SettingsDialog(QtWidgets.QDialog):
         self._revert_editor(key_path=key_path)
         return False
 
+    def refresh_setting(self, key_path: tuple[str, ...]) -> None:
+        # Called by MainWindow when a menu/toolbar toggle changes a config key
+        # while this dialog is open, e.g. "Save Automatically". A no-op for keys
+        # not (yet) exposed as a dialog row.
+        if key_path in self._editors:
+            self._revert_editor(key_path=key_path)
+
     def _revert_editor(self, key_path: tuple[str, ...]) -> None:
         # blockSignals stops the reset from re-triggering apply.
         editor = self._editors[key_path]

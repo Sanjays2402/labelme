@@ -157,6 +157,32 @@ def test_clearing_labels_is_rejected_when_validate_label_is_exact(
     assert labels_editor.toPlainText() == "cat"
 
 
+def test_refresh_setting_updates_editor_from_config(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={"display_label_popup": True}
+    )
+    checkbox = dialog._editors[("display_label_popup",)]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()
+
+    # Simulate an external change (e.g. a menu toggle) landing in config without
+    # going through the dialog's own apply path.
+    dialog._config["display_label_popup"] = False
+    dialog.refresh_setting(("display_label_popup",))
+
+    assert not checkbox.isChecked()
+    assert applied == []  # a refresh must not re-trigger apply_setting
+
+
+def test_refresh_setting_ignores_unknown_key(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(qtbot=qtbot, applied=applied, overrides={})
+    # auto_save has no dialog row yet; refresh_setting must not raise.
+    dialog.refresh_setting(("auto_save",))
+    assert applied == []
+
+
 def test_failed_apply_reverts_checkbox(qtbot: QtBot, applied: Applied) -> None:
     dialog = _make_dialog(
         qtbot=qtbot,
