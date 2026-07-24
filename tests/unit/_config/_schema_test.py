@@ -77,3 +77,24 @@ def test_enum_choice_labels_match_choices(setting: Setting) -> None:
 def test_bool_default_is_bool(setting: Setting, default_config: dict) -> None:
     default = _resolve(config=default_config, key_path=setting.key_path)
     assert isinstance(default, bool), setting.key_path
+
+
+_INT_SETTINGS = tuple(s for s in SETTINGS if s.kind == "int")
+_COLOR_SETTINGS = tuple(s for s in SETTINGS if s.kind == "color")
+
+
+@pytest.mark.parametrize("setting", _INT_SETTINGS, ids=_ids(_INT_SETTINGS))
+def test_int_default_is_within_range(setting: Setting, default_config: dict) -> None:
+    assert setting.min_value is not None
+    assert setting.max_value is not None
+    default = _resolve(config=default_config, key_path=setting.key_path)
+    assert isinstance(default, int)
+    assert setting.min_value <= default <= setting.max_value
+
+
+@pytest.mark.parametrize("setting", _COLOR_SETTINGS, ids=_ids(_COLOR_SETTINGS))
+def test_color_default_is_rgb_list(setting: Setting, default_config: dict) -> None:
+    default = _resolve(config=default_config, key_path=setting.key_path)
+    assert isinstance(default, list)
+    assert len(default) == 3
+    assert all(isinstance(channel, int) and 0 <= channel <= 255 for channel in default)

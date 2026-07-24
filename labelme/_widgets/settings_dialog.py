@@ -59,6 +59,11 @@ class _ColorSwatchButton(QtWidgets.QPushButton):
     def set_rgb(self, rgb: tuple[int, int, int]) -> None:
         self._rgb = rgb
         r, g, b = rgb
+        # The swatch is otherwise a nameless colored rectangle: expose the value
+        # to sighted users (tooltip) and screen readers (accessible name).
+        color_text = f"rgb({r}, {g}, {b})"
+        self.setToolTip(color_text)
+        self.setAccessibleName(color_text)
         self.setStyleSheet(
             f"QPushButton {{ background-color: rgb({r}, {g}, {b}); "
             "border: 1px solid palette(mid); border-radius: 4px; }"
@@ -269,6 +274,10 @@ class SettingsDialog(QtWidgets.QDialog):
             assert setting.min_value is not None and setting.max_value is not None
             spin = QtWidgets.QSpinBox()
             spin.setRange(setting.min_value, setting.max_value)
+            # Without this, valueChanged fires per keystroke while typing, and
+            # every firing is a full config-file rewrite plus a live apply of
+            # the half-typed value; arrow/wheel edits still apply immediately.
+            spin.setKeyboardTracking(False)
             self._set_editor_value(editor=spin, value=value)
             spin.valueChanged.connect(
                 lambda new_value: self._apply(setting.key_path, new_value)

@@ -186,6 +186,7 @@ SETTINGS: Final[tuple[Setting, ...]] = (
         kind="int",
         min_value=1,
         max_value=32,
+        note=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "In pixels.")),
     ),
     Setting(
         key_path=("shape_color",),

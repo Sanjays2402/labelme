@@ -267,6 +267,24 @@ def test_int_editor_applies_on_change(qtbot: QtBot, applied: Applied) -> None:
     assert applied == [(("shape", "point_size"), 16)]
 
 
+def test_int_editor_does_not_apply_per_keystroke(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_INT_SETTING,)
+    )
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+
+    spin.clear()
+    qtbot.keyClicks(spin, "12")
+    # a half-typed value must not be applied (or persisted) mid-edit
+    assert applied == []
+
+    qtbot.keyClick(spin, QtCore.Qt.Key.Key_Return)
+    assert applied == [(("shape", "point_size"), 12)]
+
+
 def test_failed_int_apply_reverts_spinbox(qtbot: QtBot, applied: Applied) -> None:
     dialog = _make_dialog(
         qtbot=qtbot,
@@ -302,6 +320,23 @@ def test_color_editor_initial_swatch(qtbot: QtBot, applied: Applied) -> None:
     swatch = dialog._editors[("default_shape_color",)]
     assert isinstance(swatch, _ColorSwatchButton)
     assert swatch.rgb() == (0, 255, 0)
+
+
+def test_color_editor_exposes_value_as_tooltip_and_accessible_name(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_COLOR_SETTING,)
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    assert swatch.toolTip() == "rgb(0, 255, 0)"
+    assert swatch.accessibleName() == "rgb(0, 255, 0)"
+
+    swatch.set_rgb((10, 20, 30))
+
+    assert swatch.toolTip() == "rgb(10, 20, 30)"
+    assert swatch.accessibleName() == "rgb(10, 20, 30)"
 
 
 def test_color_editor_applies_picked_color(
