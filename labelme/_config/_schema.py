@@ -9,7 +9,7 @@ from typing import cast
 from PySide6.QtCore import QT_TRANSLATE_NOOP
 
 Section = Literal["General", "Labels"]
-Kind = Literal["bool", "enum", "str_list", "language"]
+Kind = Literal["bool", "enum", "str_list", "language", "int", "color"]
 
 # Section names double as tab titles. QT_TRANSLATE_NOOP marks them for pyside6-lupdate
 # under the SettingsDialog context (where they are resolved via self.tr) without
@@ -35,6 +35,9 @@ class Setting:
     choices: tuple[object, ...] | None = None
     # Display labels paralleling choices; falls back to str(choice) when None.
     choice_labels: tuple[str, ...] | None = None
+    # For "int": the QSpinBox range.
+    min_value: int | None = None
+    max_value: int | None = None
     # Optional muted caption rendered beneath the control.
     note: str | None = None
     # Marks a feature shipped for early use: renders a "BETA" badge beside the

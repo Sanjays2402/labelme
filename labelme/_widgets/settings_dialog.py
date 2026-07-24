@@ -35,6 +35,25 @@ class _PlainTextEdit(QtWidgets.QPlainTextEdit):
         self.commit()
 
 
+class _ColorSwatchButton(QtWidgets.QPushButton):
+    _rgb: tuple[int, int, int] = (0, 0, 0)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFixedSize(48, 24)
+
+    def rgb(self) -> tuple[int, int, int]:
+        return self._rgb
+
+    def set_rgb(self, rgb: tuple[int, int, int]) -> None:
+        self._rgb = rgb
+        r, g, b = rgb
+        self.setStyleSheet(
+            f"QPushButton {{ background-color: rgb({r}, {g}, {b}); "
+            "border: 1px solid palette(mid); border-radius: 4px; }"
+        )
+
+
 class SettingsDialog(QtWidgets.QDialog):
     def __init__(
         self,
@@ -42,6 +61,7 @@ class SettingsDialog(QtWidgets.QDialog):
         apply_setting: ApplySetting,
         open_as_text: Callable[[], None],
         parent: QtWidgets.QWidget | None = None,
+        settings: tuple[schema.Setting, ...] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
@@ -50,12 +70,17 @@ class SettingsDialog(QtWidgets.QDialog):
         self._apply_setting = apply_setting
         self._editors: dict[tuple[str, ...], QtWidgets.QWidget] = {}
 
+        # `settings` defaults to the real schema; tests inject a smaller schema to
+        # exercise a kind without adding a permanent SETTINGS row.
+        all_settings = schema.SETTINGS if settings is None else settings
         tabs = QtWidgets.QTabWidget()
         for section in typing.get_args(schema.Section):
-            settings = [s for s in schema.SETTINGS if s.section == section]
-            if not settings:
+            settings_in_section = [s for s in all_settings if s.section == section]
+            if not settings_in_section:
                 continue
-            tabs.addTab(self._build_page(settings=settings), self.tr(section))
+            tabs.addTab(
+                self._build_page(settings=settings_in_section), self.tr(section)
+            )
         self._tabs = tabs
         tabs.currentChanged.connect(lambda _index: self._fit_height_to_active_tab())
 
@@ -224,6 +249,20 @@ class SettingsDialog(QtWidgets.QDialog):
             return self._create_combo(
                 setting=setting, value=value, items=items, min_width=160
             )
+        if setting.kind == "int":
+            assert setting.min_value is not None and setting.max_value is not None
+            spin = QtWidgets.QSpinBox()
+            spin.setRange(setting.min_value, setting.max_value)
+            self._set_editor_value(editor=spin, value=value)
+            spin.valueChanged.connect(
+                lambda new_value: self._apply(setting.key_path, new_value)
+            )
+            return spin
+        if setting.kind == "color":
+            swatch = _ColorSwatchButton()
+            self._set_editor_value(editor=swatch, value=value)
+            swatch.clicked.connect(lambda: self._pick_color(setting.key_path, swatch))
+            return swatch
         if setting.kind == "str_list":
             edit = _PlainTextEdit()
             edit.setPlaceholderText(self.tr("one item per line"))
@@ -256,6 +295,18 @@ class SettingsDialog(QtWidgets.QDialog):
         )
         return combo
 
+    def _pick_color(
+        self, key_path: tuple[str, ...], swatch: _ColorSwatchButton
+    ) -> None:
+        color = QtWidgets.QColorDialog.getColor(QtGui.QColor(*swatch.rgb()), self)
+        if not color.isValid():
+            return
+        rgb = (color.red(), color.green(), color.blue())
+        # Reflect the pick immediately, mirroring how a QCheckBox already shows
+        # its new state before _apply runs; _revert_editor undoes this on failure.
+        swatch.set_rgb(rgb)
+        self._apply(key_path, list(rgb))
+
     def _set_editor_value(self, editor: QtWidgets.QWidget, value: object) -> None:
         if isinstance(editor, QtWidgets.QCheckBox):
             editor.setChecked(bool(value))
@@ -265,6 +316,10 @@ class SettingsDialog(QtWidgets.QDialog):
             items = value if isinstance(value, list) else []
             editor.setPlainText("\n".join(str(item) for item in items))
             editor.mark_committed()
+        elif isinstance(editor, QtWidgets.QSpinBox):
+            editor.setValue(value if isinstance(value, int) else editor.minimum())
+        elif isinstance(editor, _ColorSwatchButton):
+            editor.set_rgb(_parse_rgb(value=value))
 
     def _apply(self, key_path: tuple[str, ...], value: object) -> bool:
         if self._apply_setting(key_path, value):
@@ -347,6 +402,14 @@ def _build_beta_badge(*, text: str) -> QtWidgets.QLabel:
         "}"
     )
     return badge
+
+
+def _parse_rgb(*, value: object) -> tuple[int, int, int]:
+    if isinstance(value, list) and len(value) == 3:
+        r, g, b = value
+        if isinstance(r, int) and isinstance(g, int) and isinstance(b, int):
+            return (r, g, b)
+    return (0, 0, 0)
 
 
 def _parse_str_list(*, edit: _PlainTextEdit) -> list[str] | None:

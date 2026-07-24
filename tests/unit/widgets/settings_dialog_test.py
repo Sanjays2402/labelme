@@ -8,9 +8,26 @@ from pytestqt.qtbot import QtBot
 from labelme._config import _schema as schema
 from labelme._config import load_config
 from labelme._widgets.settings_dialog import SettingsDialog
+from labelme._widgets.settings_dialog import _ColorSwatchButton
 from labelme._widgets.settings_dialog import _PlainTextEdit
 
 Applied = list[tuple[tuple[str, ...], object]]
+
+_INT_SETTING = schema.Setting(
+    key_path=("shape", "point_size"),
+    section="General",
+    label="Vertex size",
+    kind="int",
+    min_value=1,
+    max_value=32,
+)
+
+_COLOR_SETTING = schema.Setting(
+    key_path=("default_shape_color",),
+    section="General",
+    label="Default shape color",
+    kind="color",
+)
 
 
 @pytest.fixture
@@ -19,7 +36,11 @@ def applied() -> Applied:
 
 
 def _make_dialog(
-    qtbot: QtBot, applied: Applied, overrides: dict, succeed: bool = True
+    qtbot: QtBot,
+    applied: Applied,
+    overrides: dict,
+    succeed: bool = True,
+    settings: tuple[schema.Setting, ...] | None = None,
 ) -> SettingsDialog:
     config = load_config(config_file=None, config_overrides=overrides)
 
@@ -31,6 +52,7 @@ def _make_dialog(
         config=config,
         apply_setting=apply_setting,
         open_as_text=lambda: None,
+        settings=settings,
     )
     qtbot.addWidget(dialog)
     return dialog
@@ -213,4 +235,139 @@ def test_failed_apply_reverts_labels_editor(qtbot: QtBot, applied: Applied) -> N
     assert edit.toPlainText() == "cat"  # reverted, not left in a phantom state
     applied.clear()
     edit.commit()  # nothing pending: the revert reset the committed text
+    assert applied == []
+
+
+def test_int_editor_initial_value(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_INT_SETTING,)
+    )
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+    assert spin.value() == 8
+    assert spin.minimum() == 1
+    assert spin.maximum() == 32
+
+
+def test_int_editor_applies_on_change(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_INT_SETTING,)
+    )
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+    spin.setValue(16)
+    assert applied == [(("shape", "point_size"), 16)]
+
+
+def test_failed_int_apply_reverts_spinbox(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot,
+        applied=applied,
+        overrides={},
+        settings=(_INT_SETTING,),
+        succeed=False,
+    )
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+    spin.setValue(16)
+    assert spin.value() == 8  # reverted to the last-saved value
+
+
+def test_int_refresh_setting_updates_spinbox(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_INT_SETTING,)
+    )
+    spin = dialog._editors[("shape", "point_size")]
+    assert isinstance(spin, QtWidgets.QSpinBox)
+
+    dialog._config["shape"]["point_size"] = 20
+    dialog.refresh_setting(("shape", "point_size"))
+
+    assert spin.value() == 20
+    assert applied == []
+
+
+def test_color_editor_initial_swatch(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_COLOR_SETTING,)
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    assert swatch.rgb() == (0, 255, 0)
+
+
+def test_color_editor_applies_picked_color(
+    qtbot: QtBot, applied: Applied, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_COLOR_SETTING,)
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    monkeypatch.setattr(
+        QtWidgets.QColorDialog,
+        "getColor",
+        lambda *args, **kwargs: QtGui.QColor(10, 20, 30),
+    )
+
+    swatch.clicked.emit()
+
+    assert applied == [(("default_shape_color",), [10, 20, 30])]
+    assert swatch.rgb() == (10, 20, 30)
+
+
+def test_color_editor_cancelled_picker_does_not_apply(
+    qtbot: QtBot, applied: Applied, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_COLOR_SETTING,)
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    monkeypatch.setattr(
+        QtWidgets.QColorDialog,
+        "getColor",
+        lambda *args, **kwargs: QtGui.QColor(),  # invalid color == cancelled
+    )
+
+    swatch.clicked.emit()
+
+    assert applied == []
+    assert swatch.rgb() == (0, 255, 0)
+
+
+def test_failed_color_apply_reverts_swatch(
+    qtbot: QtBot, applied: Applied, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot,
+        applied=applied,
+        overrides={},
+        settings=(_COLOR_SETTING,),
+        succeed=False,
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+    monkeypatch.setattr(
+        QtWidgets.QColorDialog,
+        "getColor",
+        lambda *args, **kwargs: QtGui.QColor(10, 20, 30),
+    )
+
+    swatch.clicked.emit()
+
+    assert swatch.rgb() == (0, 255, 0)  # reverted to the last-saved value
+
+
+def test_color_refresh_setting_updates_swatch(qtbot: QtBot, applied: Applied) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_COLOR_SETTING,)
+    )
+    swatch = dialog._editors[("default_shape_color",)]
+    assert isinstance(swatch, _ColorSwatchButton)
+
+    dialog._config["default_shape_color"] = [1, 2, 3]
+    dialog.refresh_setting(("default_shape_color",))
+
+    assert swatch.rgb() == (1, 2, 3)
     assert applied == []
