@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added Annotation, Display, and AI tabs to the Settings dialog and expanded the General and Labels tabs, so that auto-save, saving image data, keep-previous annotation/zoom/brightness-contrast, fill-drawing, the drawing crosshair, vertex size, the shape coloring mode and default shape color, label sorting/completion/text-field behavior, and the default AI model can all be changed in-app with immediate apply, instead of requiring hand-editing the config file ([#2403](https://github.com/wkentaro/labelme/pull/2403))
+
+### Changed
+
+- Changed the Save Automatically, Save With Image Data, Keep Previous Annotation, Keep Previous Zoom, Keep Previous Brightness/Contrast, and Fill Drawing Polygon menu toggles to persist to `~/.labelmerc`; previously they silently reset to the config-file value on every launch ([#2403](https://github.com/wkentaro/labelme/pull/2403))
+
 ### Removed
 
 - Removed the `logger_level` config key, which had no effect: log verbosity has always been controlled solely by the `--logger-level` CLI flag. A `logger_level` entry remaining in an existing `~/.labelmerc` is dropped on load, so old config files keep working unchanged ([#2402](https://github.com/wkentaro/labelme/pull/2402))
