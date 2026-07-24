@@ -711,6 +711,42 @@ def test_ai_default_dialog_change_syncs_dock_combo(
 
 
 @pytest.mark.gui
+def test_ai_default_dialog_change_writes_config_once(
+    main_win: MainWinFactory,
+    qtbot: QtBot,
+    editable_config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    pause: bool,
+) -> None:
+    # The dock-combobox mirror of a dialog edit must not echo through
+    # model_changed into a second persistence of the same value.
+    win = main_win(config_file=editable_config_file)
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    combo = dialog._editors[("ai", "default")]
+    assert isinstance(combo, QtWidgets.QComboBox)
+
+    real_set_overrides = _config.set_overrides
+    calls: list[object] = []
+
+    def counting_set_overrides(
+        config_file: Path, overrides: list[tuple[tuple[str, ...], object]]
+    ) -> None:
+        calls.append(overrides)
+        real_set_overrides(config_file=config_file, overrides=overrides)
+
+    monkeypatch.setattr(_config, "set_overrides", counting_set_overrides)
+
+    combo.setCurrentIndex(combo.findData("EfficientSam (speed)"))
+
+    assert len(calls) == 1
+    assert win._ai_annotation._model_combo.currentText() == "EfficientSam (speed)"
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
 def test_ai_dock_combo_change_persists_as_default(
     main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
 ) -> None:

@@ -241,7 +241,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # from ai.default above) does not immediately re-persist the value it
         # was just read from.
         self._ai_annotation.model_changed.connect(
-            lambda display_name: self._set_config_value(("ai", "default"), display_name)
+            lambda display_name: self._set_config_value(
+                key_path=("ai", "default"), value=display_name
+            )
         )
 
         self._ai_text = AiTextToAnnotationWidget(
