@@ -443,11 +443,12 @@ def _build_beta_badge(*, text: str) -> QtWidgets.QLabel:
 
 
 def _parse_rgb(*, value: object) -> tuple[int, int, int]:
-    if isinstance(value, list) and len(value) == 3:
-        r, g, b = value
-        if isinstance(r, int) and isinstance(g, int) and isinstance(b, int):
-            return (r, g, b)
-    return (0, 0, 0)
+    if not (isinstance(value, list) and len(value) == 3):
+        return (0, 0, 0)
+    r, g, b = value
+    if not (isinstance(r, int) and isinstance(g, int) and isinstance(b, int)):
+        return (0, 0, 0)
+    return (r, g, b)
 
 
 def _parse_str_list(*, edit: _PlainTextEdit) -> list[str] | None:

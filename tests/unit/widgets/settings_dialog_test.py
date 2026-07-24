@@ -208,8 +208,8 @@ def test_refresh_setting_updates_editor_from_config(
 
 def test_refresh_setting_ignores_unknown_key(qtbot: QtBot, applied: Applied) -> None:
     dialog = _make_dialog(qtbot=qtbot, applied=applied, overrides={})
-    # auto_save has no dialog row yet; refresh_setting must not raise.
-    dialog.refresh_setting(("auto_save",))
+    # a key without a dialog row must be a no-op, not raise
+    dialog.refresh_setting(("does_not_exist",))
     assert applied == []
 
 

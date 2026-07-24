@@ -335,7 +335,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         save_auto = action(
             text=self.tr("Save &Automatically"),
-            slot=lambda checked: self._set_config_value(("auto_save",), checked),
+            slot=lambda checked: self._set_config_value(
+                key_path=("auto_save",), value=checked
+            ),
             tip=self.tr("Save automatically"),
             checkable=True,
             enabled=True,
@@ -386,7 +388,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         keep_prev_action = action(
             text=self.tr("Keep Previous Annotation"),
-            slot=lambda checked: self._set_config_value(("keep_prev",), checked),
+            slot=lambda checked: self._set_config_value(
+                key_path=("keep_prev",), value=checked
+            ),
             shortcut=shortcuts["toggle_keep_prev_mode"],
             tip=self.tr('Toggle "keep previous annotation" mode'),
             checkable=True,
@@ -395,7 +399,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toggle_keep_prev_brightness_contrast = action(
             text=self.tr("Keep Previous Brightness/Contrast"),
             slot=lambda checked: self._set_config_value(
-                ("keep_prev_brightness_contrast",), checked
+                key_path=("keep_prev_brightness_contrast",), value=checked
             ),
             checkable=True,
             checked=self._config["keep_prev_brightness_contrast"],
@@ -576,7 +580,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         keep_prev_zoom = action(
             text=self.tr("&Keep Previous Zoom"),
-            slot=lambda checked: self._set_config_value(("keep_prev_scale",), checked),
+            slot=lambda checked: self._set_config_value(
+                key_path=("keep_prev_scale",), value=checked
+            ),
             checkable=True,
             checked=self._config["keep_prev_scale"],
         )
@@ -649,7 +655,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connected after the startup sync trigger() above so that initial-state
         # sync does not itself write the config file.
         fill_drawing.triggered.connect(
-            lambda checked: self._set_config_value(("canvas", "fill_drawing"), checked)
+            lambda checked: self._set_config_value(
+                key_path=("canvas", "fill_drawing"), value=checked
+            )
         )
         hide_all = action(
             self.tr("&Hide\nShapes"),
@@ -2262,7 +2270,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_save_image_with_data(self, enabled: bool) -> None:
         self._actions.save_with_image_data.setChecked(enabled)
-        self._set_config_value(("with_image_data",), enabled)
+        self._set_config_value(key_path=("with_image_data",), value=enabled)
 
     def _reset_layout(self) -> None:
         self._window_state.remove("window/state")
@@ -2557,34 +2565,27 @@ class MainWindow(QtWidgets.QMainWindow):
         return True
 
     def _apply_to_live_widgets(self, key_path: tuple[str, ...]) -> None:
+        toggle_actions: dict[tuple[str, ...], QtGui.QAction] = {
+            ("auto_save",): self._actions.save_auto,
+            ("with_image_data",): self._actions.save_with_image_data,
+            ("keep_prev",): self._actions.toggle_keep_prev_mode,
+            ("keep_prev_scale",): self._actions.keep_prev_zoom,
+            (
+                "keep_prev_brightness_contrast",
+            ): self._actions.toggle_keep_prev_brightness_contrast,
+        }
         if key_path == ("color_theme",):
             # apply_color_theme -> setColorScheme emits colorSchemeChanged, which
             # drives _retheme; no explicit refresh needed here.
             _utils.apply_color_theme(theme=self._config["color_theme"])
-        elif key_path == ("auto_save",):
+        elif key_path in toggle_actions:
             self._sync_action_checked(
-                self._actions.save_auto, self._config["auto_save"]
-            )
-        elif key_path == ("with_image_data",):
-            self._sync_action_checked(
-                self._actions.save_with_image_data, self._config["with_image_data"]
-            )
-        elif key_path == ("keep_prev",):
-            self._sync_action_checked(
-                self._actions.toggle_keep_prev_mode, self._config["keep_prev"]
-            )
-        elif key_path == ("keep_prev_scale",):
-            self._sync_action_checked(
-                self._actions.keep_prev_zoom, self._config["keep_prev_scale"]
-            )
-        elif key_path == ("keep_prev_brightness_contrast",):
-            self._sync_action_checked(
-                self._actions.toggle_keep_prev_brightness_contrast,
-                self._config["keep_prev_brightness_contrast"],
+                action=toggle_actions[key_path], checked=self._config[key_path[0]]
             )
         elif key_path == ("canvas", "fill_drawing"):
             self._sync_action_checked(
-                self._actions.fill_drawing, self._config["canvas"]["fill_drawing"]
+                action=self._actions.fill_drawing,
+                checked=self._config["canvas"]["fill_drawing"],
             )
             self._canvas_widgets.canvas.set_fill_drawing(
                 self._config["canvas"]["fill_drawing"]
