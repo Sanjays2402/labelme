@@ -2635,6 +2635,21 @@ class MainWindow(QtWidgets.QMainWindow):
             flags = {key: False for key in self._config["flags"] or []}
             flags.update(current)
             self._load_flags(flags=flags, widget=self._docks.flag_list)
+        elif key_path in (
+            ("sort_labels",),
+            ("show_label_text_field",),
+            ("label_completion",),
+        ):
+            # These are only read at LabelDialog construction, so rebuild it from
+            # the same helper used at startup rather than adding setters for each.
+            # Session-learned label history (add_label_history, e.g. from loaded
+            # shapes) is lost on rebuild, unlike the predefined-labels edit above;
+            # acceptable since these are infrequent config changes, not a normal
+            # part of the annotation workflow. Nothing else holds a long-lived
+            # reference to the old instance (every usage reads self._label_dialog
+            # fresh), and the popup it shows is application-modal, so it cannot be
+            # open while this settings-driven rebuild runs.
+            self._label_dialog = self._make_label_dialog()
 
     def _refresh_shape_colors(self) -> None:
         # Canvas shapes re-resolve their color from _color_resolver on every

@@ -565,3 +565,78 @@ def test_shape_color_dialog_change_persists_fixed_as_null(
     assert safe_load(editable_config_file.read_text())["shape_color"] is None
 
     close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_sort_labels_dialog_toggle_rebuilds_label_dialog(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert win._config["sort_labels"] is True
+    old_label_dialog = win._label_dialog
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    checkbox = dialog._editors[("sort_labels",)]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()
+    checkbox.setChecked(False)
+
+    assert win._config["sort_labels"] is False
+    # sort_labels is only read at LabelDialog construction, so the live-apply
+    # rebuilds the dialog instead of updating it in place.
+    assert win._label_dialog is not old_label_dialog
+    assert win._label_dialog._sort_labels is False
+    assert safe_load(editable_config_file.read_text())["sort_labels"] is False
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_show_label_text_field_dialog_toggle_rebuilds_label_dialog(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert win._label_dialog.edit.parent() is not None
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    checkbox = dialog._editors[("show_label_text_field",)]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.isChecked()
+    checkbox.setChecked(False)
+
+    assert win._config["show_label_text_field"] is False
+    assert win._label_dialog.edit.parent() is None
+    assert safe_load(editable_config_file.read_text())["show_label_text_field"] is False
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_label_completion_dialog_change_rebuilds_label_dialog(
+    main_win: MainWinFactory, qtbot: QtBot, editable_config_file: Path, pause: bool
+) -> None:
+    win = main_win(config_file=editable_config_file)
+    assert win._config["label_completion"] == "startswith"
+
+    win._open_settings()
+    dialog = win._settings_dialog
+    assert dialog is not None
+    combo = dialog._editors[("label_completion",)]
+    assert isinstance(combo, QtWidgets.QComboBox)
+    combo.setCurrentIndex(combo.findData("contains"))
+
+    assert win._config["label_completion"] == "contains"
+    completer = win._label_dialog.edit.completer()
+    assert completer is not None
+    assert completer.filterMode() == Qt.MatchFlag.MatchContains
+    assert (
+        completer.completionMode()
+        == QtWidgets.QCompleter.CompletionMode.PopupCompletion
+    )
+    assert safe_load(editable_config_file.read_text())["label_completion"] == "contains"
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)

@@ -227,4 +227,34 @@ SETTINGS: Final[tuple[Setting, ...]] = (
         kind="enum",
         choices=(None, "exact"),
     ),
+    Setting(
+        key_path=("sort_labels",),
+        section="Labels",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Sort labels")),
+        kind="bool",
+        note=cast(
+            str,
+            QT_TRANSLATE_NOOP(
+                "SettingsDialog",
+                "Sort the label list alphabetically instead of by drag order.",
+            ),
+        ),
+    ),
+    Setting(
+        key_path=("show_label_text_field",),
+        section="Labels",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Show label text field")),
+        kind="bool",
+    ),
+    Setting(
+        key_path=("label_completion",),
+        section="Labels",
+        label=cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Label completion")),
+        kind="enum",
+        choices=("startswith", "contains"),
+        choice_labels=(
+            cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Starts with")),
+            cast(str, QT_TRANSLATE_NOOP("SettingsDialog", "Contains")),
+        ),
+    ),
 )
