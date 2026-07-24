@@ -35,6 +35,17 @@ class _PlainTextEdit(QtWidgets.QPlainTextEdit):
         self.commit()
 
 
+class _CheckBox(QtWidgets.QCheckBox):
+    # Used for every bool row so a derived master toggle (shown PartiallyChecked
+    # when its sub-keys disagree) lands on fully-checked when clicked, instead of
+    # cycling through Qt's default tristate sequence.
+    def nextCheckState(self) -> None:
+        if self.checkState() == QtCore.Qt.CheckState.Checked:
+            self.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        else:
+            self.setCheckState(QtCore.Qt.CheckState.Checked)
+
+
 class _ColorSwatchButton(QtWidgets.QPushButton):
     _rgb: tuple[int, int, int] = (0, 0, 0)
 
@@ -213,10 +224,15 @@ class SettingsDialog(QtWidgets.QDialog):
     def _create_editor(self, setting: schema.Setting) -> QtWidgets.QWidget:
         value = self._read_value(setting.key_path)
         if setting.kind == "bool":
-            check = QtWidgets.QCheckBox()
+            check = _CheckBox()
             self._set_editor_value(editor=check, value=value)
-            check.toggled.connect(
-                lambda checked: self._apply(setting.key_path, checked)
+            # checkStateChanged, not toggled: a master toggle's PartiallyChecked
+            # and Checked states are both "checked" to toggled, so a click from
+            # PartiallyChecked to Checked would never reach _apply through it.
+            check.checkStateChanged.connect(
+                lambda state: self._apply(
+                    setting.key_path, state == QtCore.Qt.CheckState.Checked
+                )
             )
             return check
         if setting.kind == "enum":
@@ -309,10 +325,20 @@ class SettingsDialog(QtWidgets.QDialog):
 
     def _set_editor_value(self, editor: QtWidgets.QWidget, value: object) -> None:
         if isinstance(editor, QtWidgets.QCheckBox):
-            # A dict value means this row is a derived master toggle over several
-            # config keys (e.g. canvas.crosshair.<mode>): checked when any is set.
-            checked = any(value.values()) if isinstance(value, dict) else bool(value)
-            editor.setChecked(checked)
+            if isinstance(value, dict):
+                # A dict value means this row is a derived master toggle over
+                # several config keys (e.g. canvas.crosshair.<mode>); tristate
+                # shows the mixed case instead of collapsing it to checked.
+                editor.setTristate(True)
+                if all(value.values()):
+                    state = QtCore.Qt.CheckState.Checked
+                elif any(value.values()):
+                    state = QtCore.Qt.CheckState.PartiallyChecked
+                else:
+                    state = QtCore.Qt.CheckState.Unchecked
+                editor.setCheckState(state)
+            else:
+                editor.setChecked(bool(value))
         elif isinstance(editor, QtWidgets.QComboBox):
             editor.setCurrentIndex(max(editor.findData(value), 0))
         elif isinstance(editor, _PlainTextEdit):

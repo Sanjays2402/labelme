@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from PySide6 import QtCore
 from PySide6 import QtGui
 from PySide6 import QtWidgets
 from pytestqt.qtbot import QtBot
@@ -385,7 +386,7 @@ def test_tabs_include_annotation_section(dialog: SettingsDialog) -> None:
     assert titles == ["General", "Annotation", "Display", "Labels", "AI"]
 
 
-def test_crosshair_editor_initial_value_is_any_mode_enabled(
+def test_crosshair_editor_shows_partial_when_modes_disagree(
     qtbot: QtBot, applied: Applied
 ) -> None:
     dialog = _make_dialog(
@@ -393,7 +394,25 @@ def test_crosshair_editor_initial_value_is_any_mode_enabled(
     )
     checkbox = dialog._editors[("canvas", "crosshair")]
     assert isinstance(checkbox, QtWidgets.QCheckBox)
-    assert checkbox.isChecked()  # default has canvas.crosshair.rectangle: true
+    # default enables canvas.crosshair.rectangle but not e.g. polygon, and a
+    # solid checkmark would misrepresent that mixed state
+    assert checkbox.checkState() == QtCore.Qt.CheckState.PartiallyChecked
+
+
+def test_crosshair_editor_click_from_partial_enables_all(
+    qtbot: QtBot, applied: Applied
+) -> None:
+    dialog = _make_dialog(
+        qtbot=qtbot, applied=applied, overrides={}, settings=(_CROSSHAIR_SETTING,)
+    )
+    checkbox = dialog._editors[("canvas", "crosshair")]
+    assert isinstance(checkbox, QtWidgets.QCheckBox)
+    assert checkbox.checkState() == QtCore.Qt.CheckState.PartiallyChecked
+
+    checkbox.click()
+
+    assert checkbox.checkState() == QtCore.Qt.CheckState.Checked
+    assert applied == [(("canvas", "crosshair"), True)]
 
 
 def test_crosshair_editor_unchecked_when_every_mode_is_disabled(
@@ -438,11 +457,11 @@ def test_crosshair_refresh_setting_updates_from_config(
     )
     checkbox = dialog._editors[("canvas", "crosshair")]
     assert isinstance(checkbox, QtWidgets.QCheckBox)
-    assert checkbox.isChecked()
+    assert checkbox.checkState() == QtCore.Qt.CheckState.PartiallyChecked
 
     dialog._config["canvas"]["crosshair"]["rectangle"] = False
     dialog._config["canvas"]["crosshair"]["ai_box_to_shape"] = False
     dialog.refresh_setting(("canvas", "crosshair"))
 
-    assert not checkbox.isChecked()
+    assert checkbox.checkState() == QtCore.Qt.CheckState.Unchecked
     assert applied == []

@@ -449,7 +449,7 @@ def test_crosshair_dialog_toggle_writes_all_nine_modes_and_applies_to_canvas(
     assert dialog is not None
     checkbox = dialog._editors[("canvas", "crosshair")]
     assert isinstance(checkbox, QtWidgets.QCheckBox)
-    assert checkbox.isChecked()
+    assert checkbox.checkState() == Qt.CheckState.PartiallyChecked
     checkbox.setChecked(False)
 
     all_disabled = {mode: False for mode in win._config["canvas"]["crosshair"]}
