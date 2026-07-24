@@ -111,6 +111,34 @@ def test_writes_list_in_flow_style(tmp_path: Path) -> None:
     assert "default_shape_color: [255, 0, 0]" in config_file.read_text(encoding="utf-8")
 
 
+def test_set_overrides_applies_batch_in_one_write(tmp_path: Path) -> None:
+    config_file = tmp_path / ".labelmerc"
+    config_file.write_text("auto_save: false\n", encoding="utf-8")
+
+    # auto_save reverts to its default (pruned) while point_size becomes an
+    # override, in a single write
+    _config.set_overrides(
+        config_file=config_file,
+        overrides=[(["auto_save"], True), (["shape", "point_size"], 12)],
+    )
+
+    assert _parse(config_file) == {"shape": {"point_size": 12}}
+
+
+def test_set_overrides_bad_key_leaves_file_untouched(tmp_path: Path) -> None:
+    config_file = tmp_path / ".labelmerc"
+    config_file.write_text("auto_save: false\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unknown config key"):
+        _config.set_overrides(
+            config_file=config_file,
+            overrides=[(["with_image_data"], True), (["nope"], 1)],
+        )
+
+    # the batch is all-or-nothing: the valid first item must not be persisted
+    assert _parse(config_file) == {"auto_save": False}
+
+
 def test_label_named_like_a_boolean_survives_round_trip(tmp_path: Path) -> None:
     config_file = tmp_path / ".labelmerc"
 

@@ -9,6 +9,7 @@ from PySide6 import QtWidgets
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
+from labelme import _config
 from labelme._app import MainWindow
 from labelme._widgets import SettingsDialog
 from labelme._widgets.settings_dialog import _ColorSwatchButton
@@ -462,6 +463,45 @@ def test_crosshair_dialog_toggle_writes_all_nine_modes_and_applies_to_canvas(
         "rectangle": False,
         "ai_box_to_shape": False,
     }
+
+    close_or_pause(qtbot=qtbot, widget=win, pause=pause)
+
+
+@pytest.mark.gui
+def test_menu_toggle_failed_write_reverts_action_and_config(
+    main_win: MainWinFactory,
+    qtbot: QtBot,
+    editable_config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    pause: bool,
+) -> None:
+    # A menu toggle whose config write fails must not leave the session
+    # diverged from disk: the action and in-memory config both revert, like
+    # the dialog reverting its editor on a failed apply.
+    win = main_win(config_file=editable_config_file)
+    action = win._actions.save_auto
+    assert action.isChecked()  # editable_config_file sets auto_save: true
+
+    warned: list[str] = []
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox,
+        "warning",
+        lambda *args, **kwargs: warned.append(args[2]),
+    )
+
+    def failing_set_overrides(
+        config_file: Path, overrides: list[tuple[tuple[str, ...], object]]
+    ) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_config, "set_overrides", failing_set_overrides)
+
+    action.trigger()
+
+    assert warned == ["disk full"]
+    assert win._config["auto_save"] is True
+    assert action.isChecked()
+    assert safe_load(editable_config_file.read_text())["auto_save"] is True
 
     close_or_pause(qtbot=qtbot, widget=win, pause=pause)
 

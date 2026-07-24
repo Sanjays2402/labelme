@@ -2490,23 +2490,34 @@ class MainWindow(QtWidgets.QMainWindow):
         node[key_path[-1]] = value
 
     def _set_config_value(self, key_path: tuple[str, ...], value: object) -> None:
-        # Used by menu/toolbar toggles that mutate config outside the Settings
-        # dialog (e.g. "Save Automatically"); _on_setting_changed is the dialog's
-        # own apply_setting callback and persists independently.
-        self._assign_config_value(key_path=key_path, value=value)
-
+        # Used by controls that mutate config outside the Settings dialog (menu
+        # and toolbar toggles like "Save Automatically", the AI dock combobox);
+        # _on_setting_changed is the dialog's own apply_setting callback and
+        # persists independently.
         if not self._is_settings_editable:
+            # No editable config file (e.g. CLI overrides): session-only change.
+            self._assign_config_value(key_path=key_path, value=value)
             return
-        assert self._config_file is not None
-        try:
-            _config.set_override(
-                config_file=self._config_file, key_path=key_path, value=value
-            )
-        except (OSError, ValueError) as e:
-            QtWidgets.QMessageBox.warning(self, self.tr("Configuration Error"), str(e))
+        if not self._try_set_overrides(overrides=[(key_path, value)]):
+            # Write failed: keep config at the persisted value and re-sync the
+            # originating control (action checked state, canvas) back from it,
+            # mirroring how the dialog reverts its editor on a failed apply.
+            self._apply_to_live_widgets(key_path=key_path)
             return
+        self._assign_config_value(key_path=key_path, value=value)
         if self._settings_dialog is not None:
             self._settings_dialog.refresh_setting(key_path)
+
+    def _try_set_overrides(
+        self, overrides: list[tuple[tuple[str, ...], object]]
+    ) -> bool:
+        assert self._config_file is not None
+        try:
+            _config.set_overrides(config_file=self._config_file, overrides=overrides)
+        except (OSError, ValueError) as e:
+            QtWidgets.QMessageBox.warning(self, self.tr("Configuration Error"), str(e))
+            return False
+        return True
 
     def _sync_action_checked(self, action: QtGui.QAction, checked: bool) -> None:
         # check-before-set avoids an unnecessary QAction change notification when
@@ -2522,14 +2533,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
         if key_path == ("canvas", "crosshair"):
             return self._set_crosshair_override(enabled=bool(value))
-        try:
-            _config.set_override(
-                config_file=self._config_file, key_path=key_path, value=value
-            )
-        except (OSError, ValueError) as e:
-            QtWidgets.QMessageBox.warning(self, self.tr("Configuration Error"), str(e))
+        if not self._try_set_overrides(overrides=[(key_path, value)]):
             return False
-
         self._assign_config_value(key_path=key_path, value=value)
         self._apply_to_live_widgets(key_path=key_path)
         return True
@@ -2537,22 +2542,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def _set_crosshair_override(self, enabled: bool) -> bool:
         # The "Crosshair while drawing" dialog row is one checkbox derived from
         # nine canvas.crosshair.<mode> keys (schema.py), so a toggle writes all
-        # nine individually rather than one bool over the dict section, keeping
-        # each key prunable to its own default.
-        assert self._config_file is not None
-        for mode in self._config["canvas"]["crosshair"]:
-            try:
-                _config.set_override(
-                    config_file=self._config_file,
-                    key_path=("canvas", "crosshair", mode),
-                    value=enabled,
-                )
-            except (OSError, ValueError) as e:
-                QtWidgets.QMessageBox.warning(
-                    self, self.tr("Configuration Error"), str(e)
-                )
-                return False
-            self._config["canvas"]["crosshair"][mode] = enabled
+        # nine individually (in one atomic batch) rather than one bool over the
+        # dict section, keeping each key prunable to its own default.
+        crosshair = self._config["canvas"]["crosshair"]
+        if not self._try_set_overrides(
+            overrides=[(("canvas", "crosshair", mode), enabled) for mode in crosshair]
+        ):
+            return False
+        for mode in crosshair:
+            crosshair[mode] = enabled
         self._apply_to_live_widgets(key_path=("canvas", "crosshair"))
         return True
 
